@@ -1,16 +1,10 @@
-// Minimal service worker for Mochi Academia Planner.
+// Service worker — intentionally minimal.
 //
-// Strategy:
-//   - Static assets (CSS, JS, icons) → cache-first. They change rarely; bump
-//     CACHE_VERSION to force refresh.
-//   - HTML pages and API requests → network-first. We always want fresh data
-//     from Supabase/Flask; the cache is only a fallback if the user is offline.
-//
-// This is intentionally simple. A fancier offline story (queued mutations,
-// IndexedDB, etc.) would fight with Supabase RLS and isn't worth the complexity
-// for v1.
+// We ONLY cache static assets (CSS/JS/icons). HTML pages, auth flows, and API
+// calls pass through untouched. This avoids the classic PWA failure mode where
+// the SW intercepts a login redirect and iOS Safari reports "network lost."
 
-const CACHE_VERSION = 'mochi-v1';
+const CACHE_VERSION = 'mochi-v2';
 const APP_SHELL = [
   '/static/css/app.css',
   '/static/js/app.js',
@@ -20,56 +14,43 @@ const APP_SHELL = [
   '/static/images/icon-192.png',
   '/static/images/icon-512.png',
   '/static/images/apple-touch-icon.png',
+  '/static/images/favicon.png',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(CACHE_VERSION).then((cache) =>
+      cache.addAll(APP_SHELL.map((url) => new Request(url, { cache: 'reload' })))
+    ).catch(() => null)
   );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  // Clear any older caches so we don't ship stale JS after a deploy.
   event.waitUntil(
     caches.keys().then((names) =>
       Promise.all(names.filter((n) => n !== CACHE_VERSION).map((n) => caches.delete(n)))
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  if (request.method !== 'GET') return; // Don't cache mutations.
-
+  if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  const isStatic = url.pathname.startsWith('/static/');
+  if (url.origin !== self.location.origin) return;
+  if (!url.pathname.startsWith('/static/')) return;
 
-  if (isStatic) {
-    // Cache-first for static assets.
-    event.respondWith(
-      caches.match(request).then(
-        (cached) => cached || fetch(request).then((res) => {
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+      return fetch(request).then((res) => {
+        if (res.ok && res.type === 'basic') {
           const copy = res.clone();
           caches.open(CACHE_VERSION).then((c) => c.put(request, copy));
-          return res;
-        })
-      )
-    );
-  } else {
-    // Network-first for everything else, falling back to cached HTML if offline.
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          // Cache successful HTML GETs so the last-known page is available offline.
-          if (res.ok && res.headers.get('content-type')?.includes('text/html')) {
-            const copy = res.clone();
-            caches.open(CACHE_VERSION).then((c) => c.put(request, copy));
-          }
-          return res;
-        })
-        .catch(() => caches.match(request))
-    );
-  }
+        }
+        return res;
+      });
+    })
+  );
 });
