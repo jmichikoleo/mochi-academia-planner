@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ cls.name }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('classes_page') }}" class="text-sm text-mochi-mute hover:underline">← All classes</a>
+<div class="flex items-center justify-between mt-2 mb-6">
+  <div class="flex items-center gap-3">
+    <span class="w-4 h-10 rounded-full" style="background: {{ cls.color }}"></span>
+    <div>
+      <h1 class="text-3xl font-bold">{{ cls.name }}</h1>
+      <p class="text-mochi-mute text-sm">
+        {{ cls.professor or '—' }}{% if cls.location %} · {{ cls.location }}{% endif %}
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <!-- Notes for this class (lightweight, stored inline via the /api/notes table tagged by title). -->
+  <section class="bg-white rounded-2xl p-6 shadow-mochi">
+    <h2 class="font-semibold text-lg mb-4">Class Notes</h2>
+    <p class="text-sm text-mochi-mute mb-3">
+      Use the <a href="{{ url_for('notes_page') }}" class="underline">Notes</a> page for richer
+      notes — this space is a quick scratchpad.
+    </p>
+    <textarea id="class-scratchpad" rows="10"
+              class="mochi-input font-mono text-sm"
+              placeholder="Jot anything — lecture highlights, todos, key terms…"></textarea>
+    <button onclick="saveScratchpad('{{ cls.id }}')"
+            class="mt-3 px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">
+      Save to notes
+    </button>
+  </section>
+
+  <!-- Placeholder for file uploads — uploads currently live under Lab section; here for future extension. -->
+  <section class="bg-white rounded-2xl p-6 shadow-mochi">
+    <h2 class="font-semibold text-lg mb-4">Resources</h2>
+    <p class="text-sm text-mochi-mute">
+      Upload slides and PDFs inside the <a href="{{ url_for('lab_page') }}" class="underline">Lab / Research</a>
+      area, where files are organized by folder and entry. Direct class-level upload is on the roadmap 💖
+    </p>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Save the scratchpad as a new note titled after the class — keeps the schema simple and
+  // avoids over-designing a per-class notes table.
+  async function saveScratchpad(classId) {
+    const content = document.getElementById('class-scratchpad').value.trim();
+    if (!content) return;
+    const r = await fetch('/api/notes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title: 'Class: {{ cls.name }}', content}),
+    });
+    if (r.ok) {
+      alert('Saved to Notes ✨');
+      document.getElementById('class-scratchpad').value = '';
+    }
+  }
+</script>
+{% endblock %}

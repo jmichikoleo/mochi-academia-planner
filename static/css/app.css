@@ -1,0 +1,36 @@
+/* Tiny reusable-input class — saves repeating the same Tailwind stack everywhere. */
+.mochi-input {
+  display: block;
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.75rem;
+  background: #fff;
+  border: 1px solid rgba(231, 159, 179, 0.45);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  font-size: 0.875rem;
+  color: #4a3b44;
+}
+.mochi-input:focus {
+  border-color: #E79FB3;
+  box-shadow: 0 0 0 3px rgba(250, 218, 221, 0.6);
+}
+
+/* Gentle card hover for everything with .shadow-mochi */
+.shadow-mochi { transition: transform .15s ease, box-shadow .15s ease; }
+
+/* Make modal backdrops smooth */
+.fixed.inset-0 { backdrop-filter: blur(2px); }
+
+/* Scrollbar — soft pink, works on webkit */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #F8C8DC; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #E79FB3; }
+
+/* Line clamp fallback */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

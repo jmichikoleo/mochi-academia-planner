@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Mochi Academia{% endblock %} · Mochi Planner</title>
+
+  <!-- PWA: manifest + theme color + apple-touch-icon + favicon. -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#FADADD">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Mochi Planner">
+
+  <!-- Tailwind via CDN keeps the stack simple; swap for a build step in prod if needed. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Extend Tailwind with the pink-pastel palette so we can use utilities like bg-mochi-primary.
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mochi: {
+              primary:   '#FADADD',
+              secondary: '#F8C8DC',
+              bg:        '#FFF0F5',
+              ink:       '#4a3b44',
+              mute:      '#9a8891',
+              accent:    '#E79FB3',
+            },
+          },
+          fontFamily: {
+            display: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui'],
+          },
+          boxShadow: {
+            mochi: '0 10px 30px -12px rgba(231, 159, 179, 0.35)',
+          },
+        },
+      },
+    };
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <!-- Chart.js is loaded globally — small enough and several pages use it. -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-mochi-bg text-mochi-ink font-display min-h-screen">
+
+  {% if session.get('access_token') %}
+  <div class="flex min-h-screen">
+    <!-- Sidebar — collapses behind a hamburger on mobile. -->
+    <aside id="sidebar"
+           class="fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white/80 backdrop-blur
+                  border-r border-mochi-primary/50 p-6 transform -translate-x-full
+                  lg:translate-x-0 transition-transform duration-200">
+      <div class="flex items-center gap-2 mb-8">
+        <span class="text-2xl">🌸</span>
+        <h1 class="text-xl font-bold tracking-tight">Mochi Planner</h1>
+      </div>
+
+      <nav class="space-y-1 text-sm">
+        {% set nav = [
+          ('dashboard',       'Dashboard',   '🏠'),
+          ('classes_page',    'Classes',     '📚'),
+          ('schedule_page',   'Schedule',    '📅'),
+          ('assignments_page','Assignments', '📝'),
+          ('gpa_page',        'GPA',         '🎯'),
+          ('lab_page',        'Lab / Research','🔬'),
+          ('notes_page',      'Notes',       '🗒️'),
+          ('study_page',      'Study Tracker','⏱️'),
+        ] %}
+        {% for endpoint, label, icon in nav %}
+          <a href="{{ url_for(endpoint) }}"
+             class="flex items-center gap-3 px-3 py-2 rounded-xl transition
+                    {% if request.endpoint == endpoint %}
+                      bg-mochi-primary text-mochi-ink font-semibold shadow-mochi
+                    {% else %}
+                      hover:bg-mochi-primary/40
+                    {% endif %}">
+            <span>{{ icon }}</span>{{ label }}
+          </a>
+        {% endfor %}
+      </nav>
+
+      <div class="absolute bottom-6 left-6 right-6 text-xs text-mochi-mute">
+        <div class="truncate mb-2">{{ current_email }}</div>
+        <a href="{{ url_for('logout') }}"
+           class="inline-block px-3 py-1.5 rounded-lg bg-white hover:bg-mochi-primary/40 transition">
+          Log out
+        </a>
+      </div>
+    </aside>
+
+    <!-- Mobile overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/20 z-20 hidden lg:hidden"></div>
+
+    <!-- Main content -->
+    <main class="flex-1 min-w-0">
+      <header class="lg:hidden flex items-center justify-between px-4 py-3 bg-white/60 border-b border-mochi-primary/40">
+        <button id="sidebar-toggle" class="p-2 rounded-lg hover:bg-mochi-primary/40">☰</button>
+        <span class="font-semibold">Mochi Planner</span>
+        <span class="w-8"></span>
+      </header>
+
+      <div class="p-6 lg:p-10 max-w-6xl mx-auto">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, msg in messages %}
+            <div class="mb-4 px-4 py-3 rounded-xl
+                        {% if category == 'error' %}bg-red-100 text-red-800{% else %}bg-mochi-primary/60{% endif %}">
+              {{ msg }}
+            </div>
+          {% endfor %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+  {% else %}
+    {% block auth_content %}{% endblock %}
+  {% endif %}
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+  <!-- PWA: register the service worker. Only runs over HTTPS or localhost. -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+          console.warn('SW registration failed:', err);
+        });
+      });
+    }
+  </script>
+
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

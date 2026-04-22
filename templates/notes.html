@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Notes{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-3xl font-bold">Notes</h1>
+    <p class="text-mochi-mute text-sm">Markdown-friendly notes. Auto-saves as you type.</p>
+  </div>
+  <button onclick="newNote()" class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">
+    + New note
+  </button>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-6 h-[calc(100vh-220px)]">
+  <!-- Note list (rail) -->
+  <aside class="bg-white rounded-2xl shadow-mochi p-3 overflow-y-auto">
+    {% if notes %}
+      <ul id="note-list" class="space-y-1">
+        {% for n in notes %}
+          <li>
+            <button data-id="{{ n.id }}" data-title="{{ n.title|e }}"
+                    data-content="{{ n.content|e }}"
+                    class="note-item w-full text-left px-3 py-2 rounded-xl hover:bg-mochi-primary/40 transition">
+              <div class="font-medium truncate">{{ n.title or 'Untitled' }}</div>
+              <div class="text-xs text-mochi-mute truncate">
+                {{ (n.content or '')[:60] }}
+              </div>
+            </button>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-mochi-mute text-sm p-3">No notes yet 💖</p>
+    {% endif %}
+  </aside>
+
+  <!-- Editor -->
+  <section class="lg:col-span-2 bg-white rounded-2xl shadow-mochi p-5 flex flex-col">
+    <input id="note-title" placeholder="Title"
+           class="text-xl font-bold bg-transparent outline-none mb-2"
+           disabled />
+    <div class="flex items-center justify-between text-xs text-mochi-mute mb-3">
+      <span id="save-status">Select a note to start editing</span>
+      <button id="delete-btn" onclick="deleteNote()" class="text-red-500 hover:underline hidden">Delete</button>
+    </div>
+    <textarea id="note-content" placeholder="Write in markdown…"
+              class="flex-1 mochi-input font-mono text-sm resize-none" disabled></textarea>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // A tiny inline editor. We don't need a full WYSIWYG — markdown + autosave is enough
+  // and keeps the bundle light.
+  let currentId = null;
+  let saveTimer = null;
+
+  const titleEl = document.getElementById('note-title');
+  const contentEl = document.getElementById('note-content');
+  const statusEl = document.getElementById('save-status');
+  const deleteBtn = document.getElementById('delete-btn');
+
+  function enableEditor() {
+    titleEl.disabled = false;
+    contentEl.disabled = false;
+    deleteBtn.classList.remove('hidden');
+  }
+
+  document.querySelectorAll('.note-item').forEach(btn => {
+    btn.addEventListener('click', () => selectNote(btn));
+  });
+
+  function selectNote(btn) {
+    currentId = btn.dataset.id;
+    titleEl.value = btn.dataset.title;
+    contentEl.value = btn.dataset.content;
+    enableEditor();
+    statusEl.textContent = 'Loaded';
+  }
+
+  // Debounced autosave — 600ms after last keystroke.
+  function scheduleSave() {
+    if (!currentId) return;
+    statusEl.textContent = 'Saving…';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      const r = await fetch('/api/notes/' + currentId, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title: titleEl.value, content: contentEl.value}),
+      });
+      statusEl.textContent = r.ok ? 'Saved ✨' : 'Save failed';
+    }, 600);
+  }
+  titleEl.addEventListener('input', scheduleSave);
+  contentEl.addEventListener('input', scheduleSave);
+
+  async function newNote() {
+    const r = await fetch('/api/notes', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title: 'Untitled', content: ''}),
+    });
+    if (r.ok) location.reload();
+  }
+
+  async function deleteNote() {
+    if (!currentId || !confirm('Delete this note?')) return;
+    const r = await fetch('/api/notes/' + currentId, {method: 'DELETE'});
+    if (r.ok) location.reload();
+  }
+</script>
+{% endblock %}

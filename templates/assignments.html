@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Assignments{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-3xl font-bold">Assignments</h1>
+    <p class="text-mochi-mute text-sm">Sorted by due date. Overdue items glow red.</p>
+  </div>
+  <button onclick="openModal('asg-modal')" class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">
+    + New assignment
+  </button>
+</div>
+
+<!-- Filters -->
+<div class="flex flex-wrap gap-2 mb-4">
+  <select id="filter-class" class="mochi-input max-w-[180px]">
+    <option value="">All classes</option>
+    {% for c in classes %}
+      <option value="{{ c.id }}">{{ c.name }}</option>
+    {% endfor %}
+  </select>
+  <select id="filter-status" class="mochi-input max-w-[160px]">
+    <option value="">All statuses</option>
+    <option value="todo">Todo</option>
+    <option value="in_progress">In progress</option>
+    <option value="done">Done</option>
+  </select>
+</div>
+
+{% if assignments %}
+<div class="bg-white rounded-2xl shadow-mochi overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-mochi-primary/40 text-left">
+      <tr>
+        <th class="px-4 py-3">Title</th>
+        <th class="px-4 py-3">Class</th>
+        <th class="px-4 py-3">Due</th>
+        <th class="px-4 py-3">Priority</th>
+        <th class="px-4 py-3">Status</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody id="asg-body">
+      {% for a in assignments %}
+        <tr class="asg-row border-t border-mochi-primary/20"
+            data-class="{{ a.class_id or '' }}" data-status="{{ a.status }}"
+            data-due="{{ a.due_date or '' }}" data-done="{{ 'y' if a.status == 'done' else 'n' }}">
+          <td class="px-4 py-3 font-medium">{{ a.title }}</td>
+          <td class="px-4 py-3">
+            {% if a.classes %}
+              <span class="inline-flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full" style="background: {{ a.classes.color }}"></span>
+                {{ a.classes.name }}
+              </span>
+            {% else %}<span class="text-mochi-mute">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 due-cell">{{ a.due_date or '—' }}</td>
+          <td class="px-4 py-3">
+            <span class="text-xs px-2 py-1 rounded-full
+                  {% if a.priority == 'high' %}bg-red-100 text-red-700
+                  {% elif a.priority == 'medium' %}bg-yellow-100 text-yellow-700
+                  {% else %}bg-green-100 text-green-700{% endif %}">
+              {{ a.priority }}
+            </span>
+          </td>
+          <td class="px-4 py-3">
+            <select onchange="updateStatus('{{ a.id }}', this.value)"
+                    class="px-2 py-1 rounded-lg bg-mochi-primary/30 text-xs">
+              <option value="todo"        {% if a.status == 'todo' %}selected{% endif %}>Todo</option>
+              <option value="in_progress" {% if a.status == 'in_progress' %}selected{% endif %}>In progress</option>
+              <option value="done"        {% if a.status == 'done' %}selected{% endif %}>Done</option>
+            </select>
+          </td>
+          <td class="px-4 py-3 text-right">
+            <button onclick="deleteAsg('{{ a.id }}')" class="text-red-500 hover:bg-red-50 px-2 py-1 rounded-lg">✕</button>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white rounded-2xl p-10 text-center shadow-mochi">
+  <div class="text-4xl mb-2">📝</div>
+  <p class="text-mochi-mute">No assignments yet 💖 — add one to keep track.</p>
+</div>
+{% endif %}
+
+<!-- New assignment modal -->
+<div id="asg-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/30 p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-mochi">
+    <h2 class="text-lg font-bold mb-4">New assignment</h2>
+    <form id="asg-form" class="space-y-3">
+      <input name="title" placeholder="Title" required class="mochi-input" />
+      <select name="class_id" class="mochi-input">
+        <option value="">No class</option>
+        {% for c in classes %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      </select>
+      <input name="due_date" type="date" class="mochi-input" />
+      <select name="priority" class="mochi-input">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+      </select>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal('asg-modal')" class="px-4 py-2 rounded-xl hover:bg-mochi-primary/40">Cancel</button>
+        <button type="submit" class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const TODAY = '{{ today }}';
+
+  // Highlight overdue / due-soon rows.
+  document.querySelectorAll('.asg-row').forEach(row => {
+    const due = row.dataset.due;
+    const done = row.dataset.done === 'y';
+    if (!due || done) return;
+    if (due < TODAY) row.classList.add('bg-red-50', 'text-red-700');
+    else if (due === TODAY) row.classList.add('bg-yellow-50');
+  });
+
+  // Filters
+  const filterClass = document.getElementById('filter-class');
+  const filterStatus = document.getElementById('filter-status');
+  function applyFilters() {
+    document.querySelectorAll('.asg-row').forEach(row => {
+      const passClass  = !filterClass.value || row.dataset.class === filterClass.value;
+      const passStatus = !filterStatus.value || row.dataset.status === filterStatus.value;
+      row.style.display = (passClass && passStatus) ? '' : 'none';
+    });
+  }
+  filterClass.addEventListener('change', applyFilters);
+  filterStatus.addEventListener('change', applyFilters);
+
+  document.getElementById('asg-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    const r = await fetch('/api/assignments', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (r.ok) location.reload();
+  });
+
+  async function updateStatus(id, status) {
+    await fetch('/api/assignments/' + id, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({status}),
+    });
+  }
+  async function deleteAsg(id) {
+    if (!confirm('Delete?')) return;
+    const r = await fetch('/api/assignments/' + id, {method: 'DELETE'});
+    if (r.ok) location.reload();
+  }
+</script>
+{% endblock %}

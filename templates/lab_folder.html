@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}{{ folder.title }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('lab_page') }}" class="text-sm text-mochi-mute hover:underline">← All folders</a>
+<div class="flex items-center justify-between mt-2 mb-6">
+  <div>
+    <h1 class="text-3xl font-bold">{{ folder.title }}</h1>
+    <p class="text-mochi-mute text-sm">{{ folder.description or 'No description.' }}</p>
+  </div>
+  <button onclick="openModal('entry-modal')" class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">
+    + New entry
+  </button>
+</div>
+
+{% if entries %}
+<div class="space-y-4">
+  {% for e in entries %}
+    <details class="bg-white rounded-2xl shadow-mochi p-5 group">
+      <summary class="cursor-pointer list-none flex items-center justify-between">
+        <div>
+          <div class="font-semibold">{{ e.title }}</div>
+          <div class="text-xs text-mochi-mute">{{ e.date }}</div>
+        </div>
+        <span class="text-mochi-mute group-open:rotate-90 transition">›</span>
+      </summary>
+      <div class="mt-4 space-y-3">
+        {% if e.summary %}
+          <div>
+            <div class="text-xs uppercase tracking-wider text-mochi-mute">Summary</div>
+            <p class="whitespace-pre-wrap">{{ e.summary }}</p>
+          </div>
+        {% endif %}
+        {% if e.notes %}
+          <div>
+            <div class="text-xs uppercase tracking-wider text-mochi-mute">Notes</div>
+            <p class="whitespace-pre-wrap">{{ e.notes }}</p>
+          </div>
+        {% endif %}
+
+        <!-- File upload -->
+        <div class="border-t border-mochi-primary/30 pt-3">
+          <div class="text-xs uppercase tracking-wider text-mochi-mute mb-2">Files</div>
+          <div class="entry-files text-sm space-y-1" data-entry="{{ e.id }}">
+            <em class="text-mochi-mute">Loading…</em>
+          </div>
+          <form class="upload-form mt-2 flex items-center gap-2" data-entry="{{ e.id }}">
+            <input type="file" name="file" required class="text-sm" />
+            <button type="submit" class="px-3 py-1.5 rounded-lg bg-mochi-primary/60 hover:bg-mochi-primary text-sm font-semibold">
+              Upload
+            </button>
+          </form>
+        </div>
+
+        <div class="flex justify-end">
+          <button onclick="deleteEntry('{{ e.id }}')" class="text-xs text-red-500 hover:underline">Delete entry</button>
+        </div>
+      </div>
+    </details>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-2xl p-10 text-center shadow-mochi">
+  <div class="text-4xl mb-2">📝</div>
+  <p class="text-mochi-mute">No entries yet 💖 — log your first experiment.</p>
+</div>
+{% endif %}
+
+<div id="entry-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/30 p-4">
+  <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-mochi">
+    <h2 class="text-lg font-bold mb-4">New entry</h2>
+    <form id="entry-form" class="space-y-3">
+      <input name="title" placeholder="Title" required class="mochi-input" />
+      <input name="date" type="date" value="{{ today }}" class="mochi-input" />
+      <textarea name="summary" rows="2" placeholder="Short summary" class="mochi-input"></textarea>
+      <textarea name="notes" rows="6" placeholder="Notes (markdown welcome)" class="mochi-input font-mono text-sm"></textarea>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal('entry-modal')" class="px-4 py-2 rounded-xl hover:bg-mochi-primary/40">Cancel</button>
+        <button type="submit" class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const FOLDER_ID = '{{ folder.id }}';
+
+  document.getElementById('entry-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    payload.folder_id = FOLDER_ID;
+    const r = await fetch('/api/lab/entries', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (r.ok) location.reload();
+  });
+
+  async function deleteEntry(id) {
+    if (!confirm('Delete this entry and its files?')) return;
+    const r = await fetch('/api/lab/entries/' + id, {method: 'DELETE'});
+    if (r.ok) location.reload();
+  }
+
+  // Lazy-load file list per entry once the <details> opens (or immediately if already open).
+  async function loadFiles(container) {
+    const id = container.dataset.entry;
+    const res = await fetch('/api/lab/entries/' + id + '/files');
+    if (!res.ok) { container.innerHTML = '<em class="text-red-500">Failed to load.</em>'; return; }
+    const files = await res.json();
+    container.innerHTML = files.length
+      ? files.map(f =>
+          `<a href="${f.file_url}" target="_blank" class="block hover:underline text-mochi-accent">
+             📎 ${f.file_url.split('/').pop()}
+           </a>`).join('')
+      : '<em class="text-mochi-mute">No files yet.</em>';
+  }
+  document.querySelectorAll('.entry-files').forEach(loadFiles);
+
+  // Wire up each upload form.
+  document.querySelectorAll('.upload-form').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      fd.append('entry_id', form.dataset.entry);
+      const r = await fetch('/api/lab/files', {method: 'POST', body: fd});
+      if (r.ok) {
+        form.reset();
+        loadFiles(form.previousElementSibling);
+      } else alert('Upload failed.');
+    });
+  });
+</script>
+{% endblock %}

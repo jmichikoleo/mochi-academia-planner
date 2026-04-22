@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}GPA{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-3xl font-bold">GPA Tracker</h1>
+    <p class="text-mochi-mute text-sm">Add graded classes — your cumulative GPA updates automatically.</p>
+  </div>
+  <button onclick="openModal('gpa-modal')"
+          class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">
+    + Add record
+  </button>
+</div>
+
+<!-- Big cumulative GPA card. Computed client-side from the rendered records. -->
+<div class="bg-white rounded-2xl p-8 shadow-mochi mb-6 text-center">
+  <div class="text-xs text-mochi-mute uppercase tracking-widest">Cumulative GPA</div>
+  <div id="cumulative-gpa" class="text-5xl font-bold mt-2">—</div>
+  <div id="total-credits" class="text-sm text-mochi-mute mt-1"></div>
+</div>
+
+{% if records %}
+<div class="bg-white rounded-2xl shadow-mochi overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-mochi-primary/40 text-left">
+      <tr>
+        <th class="px-4 py-3">Class</th>
+        <th class="px-4 py-3">Credits</th>
+        <th class="px-4 py-3">Grade</th>
+        <th class="px-4 py-3">Points</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody id="gpa-body">
+      {% for r in records %}
+        <tr class="gpa-row border-t border-mochi-primary/20" data-credits="{{ r.credits }}" data-grade="{{ r.grade }}">
+          <td class="px-4 py-3 font-medium">{{ r.classes.name if r.classes else '—' }}</td>
+          <td class="px-4 py-3">{{ r.credits }}</td>
+          <td class="px-4 py-3">{{ r.grade }}</td>
+          <td class="px-4 py-3 points-cell">—</td>
+          <td class="px-4 py-3 text-right">
+            <button onclick="deleteGpa('{{ r.id }}')" class="text-red-500 hover:bg-red-50 px-2 py-1 rounded-lg">✕</button>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white rounded-2xl p-10 text-center shadow-mochi">
+  <div class="text-4xl mb-2">🎯</div>
+  <p class="text-mochi-mute">No grades yet 💖 — add a record to see your GPA.</p>
+</div>
+{% endif %}
+
+<!-- New GPA record -->
+<div id="gpa-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/30 p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-mochi">
+    <h2 class="text-lg font-bold mb-4">New GPA record</h2>
+    <form id="gpa-form" class="space-y-3">
+      <select name="class_id" class="mochi-input">
+        <option value="">No class</option>
+        {% for c in classes %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      </select>
+      <input name="credits" type="number" min="0" step="0.5" placeholder="Credits (e.g. 3)" required class="mochi-input" />
+      <select name="grade" required class="mochi-input">
+        {% for g in ['A+','A','A-','B+','B','B-','C+','C','C-','D+','D','F'] %}
+          <option value="{{ g }}">{{ g }}</option>
+        {% endfor %}
+      </select>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal('gpa-modal')" class="px-4 py-2 rounded-xl hover:bg-mochi-primary/40">Cancel</button>
+        <button type="submit" class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Standard 4.0 scale. Kept in JS so we don't have to round-trip to the server.
+  const GRADE_POINTS = {
+    'A+':4.3,'A':4.0,'A-':3.7,
+    'B+':3.3,'B':3.0,'B-':2.7,
+    'C+':2.3,'C':2.0,'C-':1.7,
+    'D+':1.3,'D':1.0,'F':0.0,
+  };
+
+  function recomputeGpa() {
+    let totalPts = 0, totalCredits = 0;
+    document.querySelectorAll('.gpa-row').forEach(row => {
+      const credits = parseFloat(row.dataset.credits) || 0;
+      const pts = GRADE_POINTS[row.dataset.grade] ?? 0;
+      row.querySelector('.points-cell').textContent = (credits * pts).toFixed(2);
+      totalPts += credits * pts;
+      totalCredits += credits;
+    });
+    const gpaEl = document.getElementById('cumulative-gpa');
+    const credEl = document.getElementById('total-credits');
+    if (totalCredits > 0) {
+      gpaEl.textContent = (totalPts / totalCredits).toFixed(2);
+      credEl.textContent = `${totalCredits} credits · ${totalPts.toFixed(2)} quality points`;
+    }
+  }
+  recomputeGpa();
+
+  document.getElementById('gpa-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    const r = await fetch('/api/gpa', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (r.ok) location.reload();
+  });
+
+  async function deleteGpa(id) {
+    if (!confirm('Delete this grade?')) return;
+    const r = await fetch('/api/gpa/' + id, {method: 'DELETE'});
+    if (r.ok) location.reload();
+  }
+</script>
+{% endblock %}

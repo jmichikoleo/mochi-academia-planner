@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Schedule{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-3xl font-bold">Weekly Schedule</h1>
+    <p class="text-mochi-mute text-sm">Your week at a glance. Current class pulses in the corner.</p>
+  </div>
+  <button onclick="openModal('sched-modal')"
+          class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">
+    + Add entry
+  </button>
+</div>
+
+{% if entries %}
+{# Layout: a flex row with a fixed 50px time gutter and 7 day columns. Each day is
+   position:relative so events can be absolutely placed inside it using top/height
+   derived from the start/end time. Hours 8–22 (14 hours × 48px = 672px). #}
+<div class="bg-white rounded-2xl shadow-mochi p-4 overflow-x-auto">
+  <div class="flex" style="min-width: 860px;">
+    <!-- Time gutter -->
+    <div class="w-[50px] shrink-0">
+      <div class="h-8"></div>
+      {% for hour in range(8, 22) %}
+        <div class="h-12 text-xs text-mochi-mute text-right pr-2 border-t border-mochi-primary/30">
+          {{ '%02d:00'|format(hour) }}
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Day columns -->
+    {% for d in range(7) %}
+      <div class="flex-1 min-w-[110px] relative border-l border-mochi-primary/20">
+        <div class="h-8 text-center text-sm font-semibold">{{ weekday_names[d] }}</div>
+        <!-- Hour lines inside the day column so events overlay neatly. -->
+        <div class="relative" style="height: 672px;">
+          {% for hour in range(8, 22) %}
+            <div class="absolute left-0 right-0 border-t border-mochi-primary/20"
+                 style="top: {{ (hour - 8) * 48 }}px;"></div>
+          {% endfor %}
+          {% for e in entries if e.day_of_week == d %}
+            {% set start_h = e.start_time[:2]|int %}
+            {% set start_m = e.start_time[3:5]|int %}
+            {% set end_h = e.end_time[:2]|int %}
+            {% set end_m = e.end_time[3:5]|int %}
+            {% set top_px = (start_h - 8) * 48 + (start_m * 48 // 60) %}
+            {% set height_px = ((end_h - start_h) * 60 + (end_m - start_m)) * 48 // 60 %}
+            <div class="absolute left-1 right-1 rounded-xl px-2 py-1 text-xs shadow-mochi event-chip"
+                 data-day="{{ e.day_of_week }}"
+                 data-start="{{ e.start_time }}"
+                 data-end="{{ e.end_time }}"
+                 style="top: {{ top_px }}px; height: {{ height_px }}px;
+                        background-color: {{ (e.classes and e.classes.color) or '#FADADD' }};
+                        color: #4a3b44;">
+              <div class="font-semibold truncate">{{ e.classes.name if e.classes else 'Class' }}</div>
+              <div class="opacity-70">{{ e.start_time[:5] }}–{{ e.end_time[:5] }}</div>
+              <button onclick="deleteSched('{{ e.id }}')"
+                      class="absolute top-1 right-1 text-xs opacity-60 hover:opacity-100">✕</button>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="bg-white rounded-2xl p-10 text-center shadow-mochi">
+  <div class="text-4xl mb-2">📅</div>
+  <p class="text-mochi-mute">No schedule yet 💖 — add your class times to see the week.</p>
+</div>
+{% endif %}
+
+<!-- Add schedule entry modal -->
+<div id="sched-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/30 p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-mochi">
+    <h2 class="text-lg font-bold mb-4">Add a schedule entry</h2>
+    <form id="sched-form" class="space-y-3">
+      <select name="class_id" required class="mochi-input">
+        <option value="">Select class…</option>
+        {% for c in classes %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="day_of_week" required class="mochi-input">
+        {% for d in weekday_names %}
+          <option value="{{ loop.index0 }}">{{ d }}</option>
+        {% endfor %}
+      </select>
+      <div class="flex gap-2">
+        <input name="start_time" type="time" required class="mochi-input" />
+        <input name="end_time" type="time" required class="mochi-input" />
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal('sched-modal')" class="px-4 py-2 rounded-xl hover:bg-mochi-primary/40">Cancel</button>
+        <button type="submit" class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.getElementById('sched-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target).entries());
+    const r = await fetch('/api/schedule', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (r.ok) location.reload();
+    else alert('Failed to save entry.');
+  });
+
+  async function deleteSched(id) {
+    if (!confirm('Delete this entry?')) return;
+    const r = await fetch('/api/schedule/' + id, {method: 'DELETE'});
+    if (r.ok) location.reload();
+  }
+
+  // Highlight the class that's happening right now.
+  (function highlightNow() {
+    const now = new Date();
+    const weekday = (now.getDay() + 6) % 7; // Convert Sun=0 → Mon=0.
+    const hhmm = now.toTimeString().slice(0, 5);
+    document.querySelectorAll('.event-chip').forEach(el => {
+      if (+el.dataset.day === weekday
+          && el.dataset.start.slice(0,5) <= hhmm
+          && hhmm < el.dataset.end.slice(0,5)) {
+        el.classList.add('ring-2', 'ring-mochi-accent', 'animate-pulse');
+      }
+    });
+  })();
+</script>
+{% endblock %}

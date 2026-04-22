@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Classes{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-3xl font-bold">Classes</h1>
+    <p class="text-mochi-mute text-sm">Manage your courses and colors.</p>
+  </div>
+  <button onclick="openModal('class-modal')"
+          class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi hover:brightness-105 transition">
+    + Add class
+  </button>
+</div>
+
+{% if classes %}
+<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for c in classes %}
+    <div class="bg-white rounded-2xl p-5 shadow-mochi border-l-4" style="border-color: {{ c.color }}">
+      <div class="flex items-start justify-between">
+        <div>
+          <h3 class="font-semibold text-lg">{{ c.name }}</h3>
+          <p class="text-sm text-mochi-mute">{{ c.professor or 'No professor' }}</p>
+          <p class="text-xs text-mochi-mute mt-1">{{ c.location or '' }}</p>
+        </div>
+        <div class="flex gap-1">
+          <a href="{{ url_for('class_detail', class_id=c.id) }}"
+             class="text-xs px-2 py-1 rounded-lg bg-mochi-primary/50 hover:bg-mochi-primary">Open</a>
+          <button onclick="deleteClass('{{ c.id }}')"
+                  class="text-xs px-2 py-1 rounded-lg hover:bg-red-100 text-red-500">✕</button>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-2xl p-10 text-center shadow-mochi">
+  <div class="text-4xl mb-2">📚</div>
+  <p class="text-mochi-mute">No classes yet 💖 — add your first one to get started.</p>
+</div>
+{% endif %}
+
+<!-- Add class modal -->
+<div id="class-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/30 p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-mochi">
+    <h2 class="text-lg font-bold mb-4">Add a class</h2>
+    <form id="class-form" class="space-y-3">
+      <input name="name" placeholder="Class name" required class="mochi-input" />
+      <input name="professor" placeholder="Professor" class="mochi-input" />
+      <input name="location" placeholder="Location" class="mochi-input" />
+      <div class="flex items-center gap-2">
+        <label class="text-sm text-mochi-mute">Color</label>
+        <input name="color" type="color" value="#FADADD"
+               class="w-10 h-10 rounded-lg border border-mochi-primary/50 cursor-pointer" />
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal('class-modal')"
+                class="px-4 py-2 rounded-xl hover:bg-mochi-primary/40">Cancel</button>
+        <button type="submit"
+                class="px-4 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">
+          Save
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.getElementById('class-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    const r = await fetch('/api/classes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (r.ok) location.reload();
+    else alert('Failed to save class.');
+  });
+
+  async function deleteClass(id) {
+    if (!confirm('Delete this class? Schedule entries and grades linked to it will be affected.')) return;
+    const r = await fetch('/api/classes/' + id, {method: 'DELETE'});
+    if (r.ok) location.reload();
+  }
+</script>
+{% endblock %}

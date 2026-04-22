@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Study Tracker{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-3xl font-bold">Study Tracker</h1>
+  <p class="text-mochi-mute text-sm">Start a timer, log sessions, watch your streak grow.</p>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-6">
+  <!-- Timer card -->
+  <section class="bg-white rounded-2xl shadow-mochi p-8 flex flex-col items-center text-center">
+    <div class="text-xs uppercase tracking-widest text-mochi-mute">Current session</div>
+    <div id="timer-display" class="text-6xl font-bold font-mono my-4 tracking-tight">00:00:00</div>
+
+    <select id="timer-class" class="mochi-input mb-3 max-w-xs">
+      <option value="">No class</option>
+      {% for c in classes %}
+        <option value="{{ c.id }}">{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <textarea id="timer-notes" rows="2" placeholder="Session notes (optional)"
+              class="mochi-input mb-3 max-w-xs"></textarea>
+
+    <div class="flex gap-2">
+      <button id="btn-start" class="px-5 py-2 rounded-xl bg-mochi-accent text-white font-semibold shadow-mochi">Start</button>
+      <button id="btn-pause" class="px-5 py-2 rounded-xl bg-mochi-primary/60 font-semibold hidden">Pause</button>
+      <button id="btn-stop"  class="px-5 py-2 rounded-xl bg-white border border-mochi-primary font-semibold hidden">Stop & save</button>
+    </div>
+  </section>
+
+  <!-- Charts -->
+  <section class="bg-white rounded-2xl shadow-mochi p-6">
+    <h3 class="font-semibold mb-3">Last 7 days</h3>
+    <canvas id="chart-daily" height="180"></canvas>
+  </section>
+  <section class="bg-white rounded-2xl shadow-mochi p-6">
+    <h3 class="font-semibold mb-3">By class (7d)</h3>
+    <canvas id="chart-class" height="180"></canvas>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/timer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% endblock %}

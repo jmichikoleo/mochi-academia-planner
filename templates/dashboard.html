@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+  <h1 class="text-3xl font-bold mb-1">Hi there 🌸</h1>
+  <p class="text-mochi-mute">Here's what's on your plate today.</p>
+</div>
+
+<!-- Smart alerts -->
+<div class="space-y-2 mb-6">
+  {% if deadline_count > 0 %}
+    <div class="px-4 py-3 rounded-2xl bg-mochi-primary/70 border border-mochi-primary">
+      📌 You have <strong>{{ deadline_count }}</strong> deadline{% if deadline_count != 1 %}s{% endif %} this week.
+    </div>
+  {% endif %}
+  {% if study_minutes_today == 0 %}
+    <div class="px-4 py-3 rounded-2xl bg-white border border-mochi-primary/40 text-mochi-mute">
+      💡 You haven't logged any study time today — start a session when you're ready.
+    </div>
+  {% endif %}
+</div>
+
+<!-- Quick stats -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+  <div class="bg-white rounded-2xl p-5 shadow-mochi">
+    <div class="text-xs text-mochi-mute uppercase tracking-wider">Classes</div>
+    <div class="text-3xl font-bold mt-1">{{ classes|length }}</div>
+  </div>
+  <div class="bg-white rounded-2xl p-5 shadow-mochi">
+    <div class="text-xs text-mochi-mute uppercase tracking-wider">Today's Classes</div>
+    <div class="text-3xl font-bold mt-1">{{ today_schedule|length }}</div>
+  </div>
+  <div class="bg-white rounded-2xl p-5 shadow-mochi">
+    <div class="text-xs text-mochi-mute uppercase tracking-wider">Study Time Today</div>
+    <div class="text-3xl font-bold mt-1">
+      {{ (study_minutes_today // 60) }}h {{ (study_minutes_today % 60) }}m
+    </div>
+  </div>
+  <div class="bg-white rounded-2xl p-5 shadow-mochi">
+    <div class="text-xs text-mochi-mute uppercase tracking-wider">Upcoming</div>
+    <div class="text-3xl font-bold mt-1">{{ upcoming|length }}</div>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <!-- Today's schedule -->
+  <section class="bg-white rounded-2xl p-6 shadow-mochi">
+    <h2 class="font-semibold text-lg mb-4">Today's Schedule</h2>
+    {% if today_schedule %}
+      <ul class="space-y-3">
+        {% for s in today_schedule %}
+          <li class="flex items-center gap-3">
+            <span class="w-2 h-10 rounded-full"
+                  style="background-color: {{ s.classes.color or '#FADADD' }}"></span>
+            <div class="flex-1">
+              <div class="font-medium">{{ s.classes.name }}</div>
+              <div class="text-xs text-mochi-mute">
+                {{ s.start_time[:5] }} – {{ s.end_time[:5] }} · {{ s.classes.location or '—' }}
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-mochi-mute text-sm">No classes today 💖 — enjoy the break.</p>
+    {% endif %}
+  </section>
+
+  <!-- Upcoming assignments -->
+  <section class="bg-white rounded-2xl p-6 shadow-mochi">
+    <h2 class="font-semibold text-lg mb-4">Upcoming Assignments</h2>
+    {% if upcoming %}
+      <ul class="space-y-3">
+        {% for a in upcoming %}
+          <li class="flex items-start gap-3">
+            <span class="w-2 h-10 rounded-full mt-1"
+                  style="background-color: {{ (a.classes and a.classes.color) or '#F8C8DC' }}"></span>
+            <div class="flex-1">
+              <div class="font-medium">{{ a.title }}</div>
+              <div class="text-xs text-mochi-mute">
+                {% if a.classes %}{{ a.classes.name }} · {% endif %}
+                Due {{ a.due_date }}
+                {% if a.priority == 'high' %}
+                  · <span class="text-red-500 font-semibold">high priority</span>
+                {% endif %}
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-mochi-mute text-sm">No upcoming assignments 💖</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
