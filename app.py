@@ -446,31 +446,39 @@ def api_delete_entry(eid):
 def api_upload_file():
     """Uploads a file to Supabase Storage and records it in lab_files.
 
-    Files are stored under `lab/<user_id>/<entry_id>/<filename>` so policies
-    can grant access using the user_id prefix.
+    Uses the service-role client for storage (bypasses storage RLS). The path
+    includes the authenticated user_id, so server-side scoping is preserved.
     """
+    from supabase_client import get_admin_client
+
     entry_id = request.form.get("entry_id")
     f = request.files.get("file")
     if not entry_id or not f:
         return jsonify({"error": "entry_id and file are required"}), 400
 
-    path = f"{current_user_id()}/{entry_id}/{f.filename}"
-    content = f.read()
-    client = sb()
-    # Upload (upsert=True so re-uploading same name replaces).
-    client.storage.from_("lab").upload(
-        path=path, file=content,
-        file_options={"content-type": f.mimetype or "application/octet-stream", "upsert": "true"},
-    )
-    public_url = client.storage.from_("lab").get_public_url(path)
+    try:
+        safe_name = os.path.basename(f.filename).lstrip(".") or "upload"
+        path = f"{current_user_id()}/{entry_id}/{safe_name}"
+        content = f.read()
+        content_type = f.mimetype or "application/octet-stream"
 
-    row = client.table("lab_files").insert({
-        "entry_id": entry_id,
-        "file_url": public_url,
-        "file_type": f.mimetype or "application/octet-stream",
-    }).execute()
-    return jsonify(row.data[0]), 201
+        admin = get_admin_client()
+        admin.storage.from_("lab").upload(
+            path=path,
+            file=content,
+            file_options={"content-type": content_type, "upsert": "true"},
+        )
+        public_url = admin.storage.from_("lab").get_public_url(path)
 
+        row = sb().table("lab_files").insert({
+            "entry_id": entry_id,
+            "file_url": public_url,
+            "file_type": content_type,
+        }).execute()
+        return jsonify(row.data[0]), 201
+    except Exception as e:
+        app.logger.exception("Upload failed")
+        return jsonify({"error": str(e)}), 500
 
 @app.get("/api/lab/entries/<eid>/files")
 @login_required
