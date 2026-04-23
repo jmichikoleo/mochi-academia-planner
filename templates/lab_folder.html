@@ -126,10 +126,15 @@
       const fd = new FormData(form);
       fd.append('entry_id', form.dataset.entry);
       const r = await fetch('/api/lab/files', {method: 'POST', body: fd});
-      if (r.ok) {
+            if (r.ok) {
         form.reset();
         loadFiles(form.previousElementSibling);
-      } else alert('Upload failed.');
+      } else {
+        let msg = `Upload failed (HTTP ${r.status})`;
+        try { const body = await r.json(); if (body.error) msg += `: ${body.error}`; } catch {}
+        alert(msg);
+        console.error(msg);
+      }
     });
   });
 </script>
